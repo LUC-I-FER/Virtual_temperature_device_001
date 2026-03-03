@@ -1,0 +1,113 @@
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
+
+#define DEVICE_NAME "driver_002"
+#define CLASS_NAME  "driver_002_class"
+#define DEVICE_COUNT 2
+
+static dev_t dev_number;
+static struct cdev driver_002_cdev;
+static struct class *driver_002_class;
+static struct device *driver_002_devices[DEVICE_COUNT];
+
+static int driver_002_open(struct inode *inode, struct file *file){
+    pr_info("driver_002: device opened\n");
+    return 0;
+}
+
+static int driver_002_release(struct inode *inode, struct file *file){
+    pr_info("driver_002: device closed\n");
+    return 0;
+}
+
+static struct file_operations driver_002_fops = {
+    .owner   = THIS_MODULE,
+    .open    = driver_002_open,
+    .release = driver_002_release,
+};
+
+static int __init driver_002_init(void){
+    int ret, i;
+
+    pr_info("driver_002: Initializing driver\n");
+
+    ret = alloc_chrdev_region(&dev_number, 0, DEVICE_COUNT, DEVICE_NAME);
+    if (ret < 0){
+        pr_err("Failed to allocate device numbers\n");
+        return ret;
+    }
+
+    cdev_init(&driver_002_cdev, &driver_002_fops);
+    driver_002_cdev.owner = THIS_MODULE;
+
+    ret = cdev_add(&driver_002_cdev, dev_number, DEVICE_COUNT);
+    if (ret < 0){
+        pr_err("Failed to add cdev\n");
+        goto unregister_region;
+    }
+
+    driver_002_class = class_create(CLASS_NAME);
+    if (IS_ERR(driver_002_class)){
+        ret = PTR_ERR(driver_002_class);
+        goto del_cdev;
+    }
+
+    for (i = 0; i < DEVICE_COUNT; i++){
+        driver_002_devices[i] = device_create(
+            driver_002_class,
+            NULL,
+            MKDEV(MAJOR(dev_number), MINOR(dev_number) + i),
+            NULL,
+            "driver_002_%d",
+            i
+        );
+
+        if (IS_ERR(driver_002_devices[i])){
+            ret = PTR_ERR(driver_002_devices[i]);
+            goto destroy_devices;
+        }
+    }
+
+    pr_info("driver_002: Driver loaded successfully\n");
+    return 0;
+
+destroy_devices:
+    while (i--)
+        device_destroy(driver_002_class,
+            MKDEV(MAJOR(dev_number), MINOR(dev_number) + i));
+
+    class_destroy(driver_002_class);
+
+del_cdev:
+    cdev_del(&driver_002_cdev);
+
+unregister_region:
+    unregister_chrdev_region(dev_number, DEVICE_COUNT);
+    return ret;
+}
+
+static void __exit driver_002_exit(void){
+    int i;
+
+    for (i = 0; i < DEVICE_COUNT; i++){
+        device_destroy(driver_002_class,
+            MKDEV(MAJOR(dev_number), MINOR(dev_number) + i));
+    }
+
+    class_destroy(driver_002_class);
+    cdev_del(&driver_002_cdev);
+    unregister_chrdev_region(dev_number, DEVICE_COUNT);
+
+    pr_info("driver_002: Driver unloaded\n");
+}
+
+module_init(driver_002_init);
+module_exit(driver_002_exit);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Lucifer");
+MODULE_DESCRIPTION("Virtual Temperature Driver - Stage 01");
+MODULE_VERSION("1.0");
