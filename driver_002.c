@@ -3,6 +3,8 @@
 #include <linux/fs.h>
 #include <linux/cdev.h>
 #include <linux/device.h>
+#include <linux/timer.h>
+#include <linux/jiffies.h>
 
 #define DEVICE_NAME "driver_002"
 #define CLASS_NAME  "driver_002_class"
@@ -11,8 +13,11 @@
 struct driver_002_dev {
     int device_id;
     int temperature;
+
     struct cdev cdev;
     struct device *device;
+
+    struct timer_list timer;
 };
 
 static dev_t dev_number;
@@ -58,6 +63,16 @@ static struct file_operations driver_002_fops = {
     .read = driver_002_read,
 };
 
+static void driver_002_timer_callback(struct timer_list *t)
+{
+    struct driver_002_dev *dev;
+    dev = from_timer(dev, t, timer);
+
+    dev->temperature++;
+    pr_info("driver_002_%d: Temp updated to %d\n", dev->device_id, dev->temperature);
+    mod_timer(&dev->timer, jiffies + msecs_to_jiffies(2000));
+}
+
 static int __init driver_002_init(void){
     int ret, i;
 
@@ -97,6 +112,9 @@ static int __init driver_002_init(void){
         driver_002_devices[i].device_id = i;
         driver_002_devices[i].temperature = 25 + i;
 
+        timer_setup(&driver_002_devices[i].timer, driver_002_timer_callback, 0); // initiailze the timer
+        mod_timer(&driver_002_devices[i].timer, jiffies + msecs_to_jiffies(2000)); // start the timer
+
         if (IS_ERR(driver_002_devices[i].device)){
             ret = PTR_ERR(driver_002_devices[i].device);
             goto destroy_devices;
@@ -125,8 +143,9 @@ static void __exit driver_002_exit(void){
     int i;
 
     for (i = 0; i < DEVICE_COUNT; i++){
-        device_destroy(driver_002_class,
-            MKDEV(MAJOR(dev_number), MINOR(dev_number) + i));
+        del_timer_sync(&driver_002_devices[i].timer); // deletes the timers
+
+        device_destroy(driver_002_class, MKDEV(MAJOR(dev_number), MINOR(dev_number) + i));
     }
 
     class_destroy(driver_002_class);
