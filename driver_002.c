@@ -18,14 +18,13 @@ struct driver_002_dev {
 static dev_t dev_number;
 static struct cdev driver_002_cdev;
 static struct class *driver_002_class;
-// static struct device *driver_002_devices[DEVICE_COUNT];
 static struct driver_002_dev driver_002_devices[DEVICE_COUNT];
 
 
 static int driver_002_open(struct inode *inode, struct file *file){
     int minor = iminor(inode);
     if (minor >= DEVICE_COUNT){
-        return -ENODEV;
+        return -ENODEV; // prevents unknown driver information extract
     }
 
     file->private_data = &driver_002_devices[minor];
