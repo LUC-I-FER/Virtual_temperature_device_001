@@ -8,25 +8,55 @@
 #define CLASS_NAME  "driver_002_class"
 #define DEVICE_COUNT 2
 
+struct driver_002_dev {
+    int device_id;
+    int temperature;
+    struct cdev cdev;
+    struct device *device;
+};
+
 static dev_t dev_number;
 static struct cdev driver_002_cdev;
 static struct class *driver_002_class;
-static struct device *driver_002_devices[DEVICE_COUNT];
+// static struct device *driver_002_devices[DEVICE_COUNT];
+static struct driver_002_dev driver_002_devices[DEVICE_COUNT];
+
 
 static int driver_002_open(struct inode *inode, struct file *file){
-    pr_info("driver_002: device opened\n");
+    int minor = iminor(inode);
+    if (minor >= DEVICE_COUNT){
+        return -ENODEV;
+    }
+
+    file->private_data = &driver_002_devices[minor];
+
+    pr_info("driver_002: device %d opened\n", minor);
     return 0;
 }
 
 static int driver_002_release(struct inode *inode, struct file *file){
-    pr_info("driver_002: device closed\n");
+    struct driver_002_dev *dev = file->private_data;
+    
+    pr_info("driver_002: device %d closed\n", dev->device_id);
     return 0;
+}
+
+static ssize_t driver_002_read(struct file *file, char __user *buf, size_t len, loff_t *offset)
+{
+    struct driver_002_dev *dev = file->private_data;
+    char message[32];
+    int msg_len;
+
+    msg_len = snprintf(message, sizeof(message), "Temp: %d\n", dev->temperature);
+    return simple_read_from_buffer(buf, len, offset, message, msg_len);
+
 }
 
 static struct file_operations driver_002_fops = {
     .owner   = THIS_MODULE,
     .open    = driver_002_open,
     .release = driver_002_release,
+    .read = driver_002_read,
 };
 
 static int __init driver_002_init(void){
@@ -56,7 +86,7 @@ static int __init driver_002_init(void){
     }
 
     for (i = 0; i < DEVICE_COUNT; i++){
-        driver_002_devices[i] = device_create(
+        driver_002_devices[i].device = device_create(
             driver_002_class,
             NULL,
             MKDEV(MAJOR(dev_number), MINOR(dev_number) + i),
@@ -65,8 +95,11 @@ static int __init driver_002_init(void){
             i
         );
 
-        if (IS_ERR(driver_002_devices[i])){
-            ret = PTR_ERR(driver_002_devices[i]);
+        driver_002_devices[i].device_id = i;
+        driver_002_devices[i].temperature = 25 + i;
+
+        if (IS_ERR(driver_002_devices[i].device)){
+            ret = PTR_ERR(driver_002_devices[i].device);
             goto destroy_devices;
         }
     }
