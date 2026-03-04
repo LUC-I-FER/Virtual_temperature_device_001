@@ -1,1 +1,0 @@
-savedcmd_/home/adarsh/Embedded_Projects/Learning_Phase/project_009/driver_002.ko := ld -r -m elf_x86_64 -z noexecstack --build-id=sha1  -T scripts/module.lds -o /home/adarsh/Embedded_Projects/Learning_Phase/project_009/driver_002.ko /home/adarsh/Embedded_Projects/Learning_Phase/project_009/driver_002.o /home/adarsh/Embedded_Projects/Learning_Phase/project_009/driver_002.mod.o

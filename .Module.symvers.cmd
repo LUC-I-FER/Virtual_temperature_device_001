@@ -1,1 +1,0 @@
-savedcmd_/home/adarsh/Embedded_Projects/Learning_Phase/project_009/Module.symvers :=  scripts/mod/modpost -M -m -a      -o /home/adarsh/Embedded_Projects/Learning_Phase/project_009/Module.symvers -T /home/adarsh/Embedded_Projects/Learning_Phase/project_009/modules.order -i Module.symvers -e 
