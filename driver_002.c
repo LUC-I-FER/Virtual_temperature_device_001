@@ -7,10 +7,20 @@
 #include <linux/jiffies.h>
 #include <linux/wait.h>
 #include <linux/sched.h>
+#include <linux/ioctl.h>
+
+#define DRIVER_MAGIC 'T'
+
+#define IOCTL_SET_TEMP      _IOW(DRIVER_MAGIC, 1, int)
+#define IOCTL_GET_TEMP      _IOR(DRIVER_MAGIC, 2, int)
+#define IOCTL_SET_INTERVAL  _IOW(DRIVER_MAGIC, 3, int)
 
 #define DEVICE_NAME "driver_002"
 #define CLASS_NAME  "driver_002_class"
 #define DEVICE_COUNT 2
+
+static int temperature = 25;
+static int update_interval_ms = 2000;  // default 2 sec
 
 struct driver_002_dev {
     int device_id;
@@ -68,13 +78,6 @@ static ssize_t driver_002_read(struct file *file, char __user *buf, size_t len, 
 
 }
 
-static struct file_operations driver_002_fops = {
-    .owner   = THIS_MODULE,
-    .open    = driver_002_open,
-    .release = driver_002_release,
-    .read = driver_002_read,
-};
-
 static void driver_002_timer_callback(struct timer_list *t)
 {
     struct driver_002_dev *dev;
@@ -86,6 +89,48 @@ static void driver_002_timer_callback(struct timer_list *t)
     wake_up_interruptible(&dev->wq); // wake up any blocked readers
     mod_timer(&dev->timer, jiffies + msecs_to_jiffies(2000));
 }
+
+static long temp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+    int value;
+    switch (cmd)
+    {
+        case IOCTL_SET_TEMP:
+            if (copy_from_user(&value, (int __user *) arg, sizeof(int)))
+                return -EFAULT;
+
+            temperature = value;
+            printk(KERN_INFO "Temperature set to %d\n", temperature);
+            break;
+
+        case IOCTL_GET_TEMP:
+            if (copy_to_user((int __user *) arg, &temperature, sizeof(int)))
+                return -EFAULT;
+
+            break;
+
+        case IOCTL_SET_INTERVAL:
+            if (copy_from_user(&value, (int __user *) arg, sizeof(int)))
+            return -EFAULT;
+
+            update_interval_ms = value;
+            printk(KERN_INFO "Interval set to %d ms\n", update_interval_ms);
+            break;
+
+        default:
+            return -EFAULT;
+    }
+
+    return 0;
+}
+
+static struct file_operations driver_002_fops = {
+    .owner   = THIS_MODULE,
+    .open    = driver_002_open,
+    .release = driver_002_release,
+    .read = driver_002_read,
+    .unlocked_ioctl = temp_ioctl,
+};
 
 static int __init driver_002_init(void){
     int ret, i;

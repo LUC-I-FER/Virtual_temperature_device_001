@@ -15,4 +15,7 @@ Goal: A passive data holder to An active, time-driven device
 Goal : This is where your driver stops being polling-based and becomes event-driven.
 
 # stage 05 -> IOCTL Interface
+
+Goal : Controlled commands sent from user space to driver.
+
 # stage 06 -> Robust Cleanup
