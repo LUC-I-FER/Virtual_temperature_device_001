@@ -5,6 +5,8 @@
 #include <linux/device.h>
 #include <linux/timer.h>
 #include <linux/jiffies.h>
+#include <linux/wait.h>
+#include <linux/sched.h>
 
 #define DEVICE_NAME "driver_002"
 #define CLASS_NAME  "driver_002_class"
@@ -18,6 +20,9 @@ struct driver_002_dev {
     struct device *device;
 
     struct timer_list timer;
+
+    wait_queue_head_t wq;
+    bool data_ready;
 };
 
 static dev_t dev_number;
@@ -50,6 +55,13 @@ static ssize_t driver_002_read(struct file *file, char __user *buf, size_t len, 
     struct driver_002_dev *dev = file->private_data;
     char message[32];
     int msg_len;
+    int ret;
+
+    ret = wait_event_interruptible(dev->wq, dev->data_ready == true); // wait until data_ready becomes true
+
+    if (ret) return ret;
+
+    dev->data_ready = false;
 
     msg_len = snprintf(message, sizeof(message), "Temp: %d\n", dev->temperature);
     return simple_read_from_buffer(buf, len, offset, message, msg_len);
@@ -69,7 +81,9 @@ static void driver_002_timer_callback(struct timer_list *t)
     dev = from_timer(dev, t, timer);
 
     dev->temperature++;
+    dev->data_ready = true;
     pr_info("driver_002_%d: Temp updated to %d\n", dev->device_id, dev->temperature);
+    wake_up_interruptible(&dev->wq); // wake up any blocked readers
     mod_timer(&dev->timer, jiffies + msecs_to_jiffies(2000));
 }
 
@@ -112,8 +126,12 @@ static int __init driver_002_init(void){
         driver_002_devices[i].device_id = i;
         driver_002_devices[i].temperature = 25 + i;
 
+        init_waitqueue_head(&driver_002_devices[i].wq); // initialize the queue
+        driver_002_devices[i].data_ready = false; // set the data_ready to false;
+
         timer_setup(&driver_002_devices[i].timer, driver_002_timer_callback, 0); // initiailze the timer
         mod_timer(&driver_002_devices[i].timer, jiffies + msecs_to_jiffies(2000)); // start the timer
+
 
         if (IS_ERR(driver_002_devices[i].device)){
             ret = PTR_ERR(driver_002_devices[i].device);

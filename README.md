@@ -11,5 +11,8 @@ Goal: Create a pre-device structure allocate an array of device instance, Map mi
 Goal: A passive data holder to An active, time-driven device
 
 # stage 04 -> Blocking Read
+
+Goal : This is where your driver stops being polling-based and becomes event-driven.
+
 # stage 05 -> IOCTL Interface
 # stage 06 -> Robust Cleanup
